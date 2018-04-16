@@ -7,8 +7,11 @@ import matplotlib.patches as mpatches
 colors = ['blue', 'red', 'green', 'yellow']
 styles = ['-','--',':','-.']
 
+
 def plot_points(data, em):
+    rcParams['figure.figsize'] = 16, 9
     data_hashable = [tuple(x) for x in data]
+    total_points = len(data_hashable)
 
     values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
     counts = np.array(list(Counter(data_hashable).values()))
