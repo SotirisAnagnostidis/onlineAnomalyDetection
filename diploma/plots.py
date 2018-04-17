@@ -28,7 +28,7 @@ def plot_points(data, em):
     plt.show()
     
     
-def plot_results(em_algorithm):
+def plot_results(em_algorithm, legend=True):
     import matplotlib
     
     rcParams['figure.figsize'] = 16, 12
@@ -51,14 +51,16 @@ def plot_results(em_algorithm):
                 a = plt.plot(x, np.array(em_algorithm.get_lambdas()[i])[:,j], color=colors[i % len(colors)], 
                              linestyle=styles[j % len(styles)])
     plt.ylabel('lambda')
-    plt.legend()
+    if legend:
+        plt.legend()
     plt.grid()
 
     plt.subplot(3, 1, 2, sharex=ax)
     for i in range(len(em_algorithm.get_gammas())):
         plt.plot(x, em_algorithm.get_gammas()[i], color=colors[i % len(colors)], label='gamme ' + str(i))
     plt.ylabel('estimated weight')
-    plt.legend()
+    if legend:
+        plt.legend()
     plt.grid()
     
     plt.subplot(3, 1, 3, sharex=ax)

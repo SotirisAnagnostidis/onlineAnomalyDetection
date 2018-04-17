@@ -1,9 +1,10 @@
 from math import log
 import numpy as np
 from dsio.anomaly_detectors import AnomalyMixin
+from dsio.update_formulae import decision_rule
 from sklearn.cluster import KMeans
 import scipy.stats.distributions
-import itertools
+
 
 
 def poisson(x, l):
@@ -122,7 +123,7 @@ class OnlineEM(AnomalyMixin):
 
         return data[pos:], n
 
-    def closest_centers_for_host(self, data):
+    def closest_centers(self, data):
         n = len(data)
 
         f = self.calculate_participation(data)
@@ -131,37 +132,54 @@ class OnlineEM(AnomalyMixin):
         temp_sum = f.sum(axis=0)
         return temp_sum / n
 
+    def update_host(self, point):
+        host = point[-1]
+        if host in self.hosts:
+            host_points = self.hosts[host]['n_points']
+
+            self.hosts[host]['group'] = (self.closest_centers([point]) + self.hosts[host]['group'] * host_points) / \
+                                        (host_points + 1)
+
+            # the number of data points for the host
+            self.hosts[host]['n_points'] += 1
+        else:
+            self.hosts[host] = {}
+            # create a self.m array containing the proportion of participation for this host for every center of poisson
+            self.hosts[host]['group'] = self.closest_centers([point])
+
+            # the number of data points for the host
+            self.hosts[host]['n_points'] = 1
+
     def fit(self, x):
         """
-        For fitting the initial values update function is called 
-        Depending on the use of the update factor initial values may have an impact or not
-        data is a dictionary with keys the host names and values the array of values
+        For fitting the initial values update function is called the pth column holds the by attribute
+        x is a array n times p where 
         :param x: data
         """
+        if len(x) <= 0:
+            return
+
+        features = len(x[0])
         # the starting position of the current batch in the data
-        data = list(itertools.chain(*list(x.values())))
+        data = x[:, 0:features - 1]
         pos = 0
         while pos < len(data):
             batch, pos = self.get_new_batch(data, pos)
 
             self.update_parameters(batch)
 
+        # upon initialization self.hosts should not contain a key for host
+        for point in x:
+            self.update_host(point)
+
         closest_centers = []
 
-        # upon initialization self.hosts should not contain a key for host
-        for host in x.keys():
-            # for each host create a dictionary holding useful information
-            self.hosts[host] = {}
-            # create a self.m array containing the proportion of participation for this host for every center of poisson
-            self.hosts[host]['group'] = self.closest_centers_for_host(x[host])
-            # the number of data points for the host
-            self.hosts[host]['n_points'] = len(x[host])
-
+        for host in self.hosts.keys():
             closest_centers.append(self.hosts[host]['group'])
 
         self.kMeans.fit(closest_centers)
 
-        for host in x.keys():
+        for host in self.hosts.keys():
             category = self.kMeans.predict([self.hosts[host]['group']])[0]
             self.hosts[host]['category'] = category
             points_in_cluster = self.counts_per_kMeans_cluster[category]
@@ -179,50 +197,34 @@ class OnlineEM(AnomalyMixin):
         # TODO (or another way to get the host name)
         #                assumes the data has the appropriate length fot batch processing
 
-        data = list(itertools.chain(*list(x.values())))
+        data = x[:, 0:features - 1]
         self.update_parameters(data)
-        for host in x.keys():
-            if host in x:
-                # we have a history for this host already
-                n_old_points = self.hosts[host]['n_points']
-                n_new_points = len(x[host])
-                self.hosts[host]['group'] = (self.closest_centers_for_host(x[host]) * n_new_points +
-                                             self.hosts[host]['group'] * n_old_points) / (n_new_points + n_new_points)
-                self.hosts[host]['n_points'] = n_old_points + n_new_points
-                # TODO should we also update the cluster we consider this host to belong to ?
-                # TODO also the same for probabilities and counts_per_kMeans_cluster
-                self.hosts[host]['category'] = self.kMeans.predict([self.hosts[host]['group']])[0]
-            else:
-                self.hosts[host] = {}
-                self.hosts[host]['group'] = self.closest_centers_for_host(x[host])
-                self.hosts[host]['n_points'] = len(x[host])
-                self.hosts[host]['category'] = self.kMeans.predict([self.hosts[host]['group']])[0]
+        for point in x:
+            self.update_host(point)
 
         # kMeans center should be updated every a number of batch updates??
 
     # TODO
     def score_anomaly(self, x):
-        score_anomalies = np.array([], dtype=np.bool)
-        for host in x.keys():
-            f = np.zeros(shape=(len(x[host]), self.m))
-            for i, x_i in enumerate(x[host]):
-                f[i] = self.gammas * np.array([poisson(x_i, lambda_i) for lambda_i in self.lambdas])
-
+        score_anomalies = np.array([])
+        for point in x:
+            host = point[-1]
+            f = self.gammas * np.array([poisson(point[:-1], lambda_i) for lambda_i in self.lambdas])
             if host in self.hosts:
                 # calculate based on the probabilities within the cluster
                 gammas_for_cluster = self.probabilities_per_kMean_cluster[self.hosts[host]['category']]
-                prob = np.max(f * gammas_for_cluster, axis=1) < self.threshold
+                decision = np.max(f * gammas_for_cluster)
             else:
                 # calculate based on the global probabilities
-                prob = np.max(f * self.gammas, axis=1) < self.threshold
+                decision = np.max(f * self.gammas)
 
-            score_anomalies = np.append(score_anomalies, prob)
+            score_anomalies = np.append(score_anomalies, [decision])
 
         return score_anomalies
 
     # TODO
     def flag_anomaly(self, x):
-        pass
+        return self.score_anomaly(x) < self.threshold
 
     def get_gammas(self):
         return self.gammas_over_time
@@ -240,3 +242,4 @@ class OnlineEM(AnomalyMixin):
         """
         return ((-2) / self.iteration_k) * self.calculate_likelihood(data) + log(len(data)) * (
         2 * self.m - 1), self.calculate_likelihood(data)
+    
