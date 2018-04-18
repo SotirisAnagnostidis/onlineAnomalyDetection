@@ -72,3 +72,44 @@ def plot_results(em_algorithm, legend=True):
     plt.show()
     
     rcParams['figure.figsize'] = 16, 9
+
+def _plot_category(xx, yy, Z, category, em):
+    for i, point in enumerate(np.c_[xx.ravel(), yy.ravel()]):
+        Z[i] = em.score_anomaly_for_category(point, category)
+
+    Z = Z / np.max(Z)
+
+    Z = Z.reshape(xx.shape)
+
+
+    plt.contourf(xx, yy, Z, cmap=plt.cm.Blues_r)
+
+    for i, lambda_i in enumerate(em.lambdas):
+            plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*1000, linewidth=4, color='red', marker='x')
+
+    
+def plot_category(category, em, limits_x=[-5,105], limits_y=[-5,105], number_of_points=50):
+    # plot the level sets of the decision function
+    xx, yy = np.meshgrid(np.linspace(limits_x[0], limits_x[1], number_of_points, dtype=np.int64),
+                         np.linspace(limits_y[0], limits_y[1], number_of_points, dtype=np.int64))
+    Z = np.zeros(len(xx)*len(xx))
+    
+    _plot_category(xx, yy, Z, category, em)
+
+    plt.show()
+    
+def plot_all_categories(em, limits_x=[-5,105], limits_y=[-5,105], number_of_points=50):
+    xx, yy = np.meshgrid(np.linspace(limits_x[0], limits_x[1], number_of_points, dtype=np.int64),
+                         np.linspace(limits_y[0], limits_y[1], number_of_points, dtype=np.int64))
+    
+    rcParams['figure.figsize'] = 16, 4*(int((em.n_clusters -1)/2) + 1)
+    for i in range(em.n_clusters):
+        Z = np.zeros(len(xx)*len(xx))
+        plt.subplot(int((em.n_clusters -1)/2) + 1, 2, i + 1)
+        plt.title('Cluster' + str(i))
+        _plot_category(xx, yy, Z, i, em)
+
+    plt.tight_layout()
+    plt.show()
+    rcParams['figure.figsize'] = 16, 9
+        

@@ -6,7 +6,6 @@ from sklearn.cluster import KMeans
 import scipy.stats.distributions
 
 
-
 def poisson(x, l):
     return_value = 1
     for x_i, l_i in zip(x, l):
@@ -42,7 +41,7 @@ class OnlineEM(AnomalyMixin):
         self.likelihood = []
 
         # number of current iteration
-        self.iteration_k = 0
+        self.iteration_k = 1
 
         # a dictionary containing for each host valuable information
         self.hosts = {}
@@ -53,7 +52,7 @@ class OnlineEM(AnomalyMixin):
         self.probabilities_per_kMean_cluster = np.zeros(shape=(n_clusters, self.m))
         # each cluster has a number of hosts in it
         self.counts_per_kMeans_cluster = np.zeros(n_clusters)
-
+        self.n_clusters = n_clusters
         self.threshold = threshold
 
     def calculate_participation(self, data):
@@ -197,28 +196,39 @@ class OnlineEM(AnomalyMixin):
         # TODO (or another way to get the host name)
         #                assumes the data has the appropriate length fot batch processing
 
+        if len(x) <= 0:
+            return
+
+        features = len(x[0])
         data = x[:, 0:features - 1]
         self.update_parameters(data)
         for point in x:
             self.update_host(point)
 
-        # kMeans center should be updated every a number of batch updates??
+            # kMeans center should be updated every a number of batch updates??
+
+    def score_anomaly_for_category(self, x, category=None):
+        f = self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])
+        if category is not None:
+            # calculate based on the probabilities within the cluster
+            gammas_for_cluster = self.probabilities_per_kMean_cluster[category]
+            score = np.max(f * gammas_for_cluster)
+        else:
+            # calculate based on the global probabilities
+            score = np.max(f * self.gammas)
+        return score
 
     # TODO
     def score_anomaly(self, x):
         score_anomalies = np.array([])
         for point in x:
             host = point[-1]
-            f = self.gammas * np.array([poisson(point[:-1], lambda_i) for lambda_i in self.lambdas])
             if host in self.hosts:
-                # calculate based on the probabilities within the cluster
-                gammas_for_cluster = self.probabilities_per_kMean_cluster[self.hosts[host]['category']]
-                decision = np.max(f * gammas_for_cluster)
+                score = self.score_anomaly_for_category(point[:-1], category=self.hosts[host]['category'])
             else:
-                # calculate based on the global probabilities
-                decision = np.max(f * self.gammas)
+                score = self.score_anomaly_for_category(point[:-1])
 
-            score_anomalies = np.append(score_anomalies, [decision])
+            score_anomalies = np.append(score_anomalies, [score])
 
         return score_anomalies
 
@@ -241,5 +251,4 @@ class OnlineEM(AnomalyMixin):
         :return a tuple of the bic avg_log_likelihoods and the log likelihood of the whole data
         """
         return ((-2) / self.iteration_k) * self.calculate_likelihood(data) + log(len(data)) * (
-        2 * self.m - 1), self.calculate_likelihood(data)
-    
+            2 * self.m - 1), self.calculate_likelihood(data)
