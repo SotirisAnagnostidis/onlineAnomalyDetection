@@ -113,3 +113,56 @@ def plot_all_categories(em, limits_x=[-5,105], limits_y=[-5,105], number_of_poin
     plt.show()
     rcParams['figure.figsize'] = 16, 9
         
+def plot_for_host(host, em, data, limits_x=[-5,105], limits_y=[-5,105], number_of_points=50):
+    rcParams['figure.figsize'] = 16, 9
+    category = em.hosts[host]['category']
+    
+    plt.subplot(1,2,1)
+      # plot the level sets of the decision function
+    xx, yy = np.meshgrid(np.linspace(limits_x[0], limits_x[1], number_of_points, dtype=np.int64),
+                         np.linspace(limits_y[0], limits_y[1], number_of_points, dtype=np.int64))
+    Z = np.zeros(len(xx)*len(xx))
+    
+    for i, point in enumerate(np.c_[xx.ravel(), yy.ravel()]):
+        Z[i] = em.score_anomaly_for_category(point, category)
+        
+    temp = np.array(Z, copy=True)  
+        
+    Z = Z / np.max(Z)
+
+    Z = Z.reshape(xx.shape)
+
+
+    plt.contourf(xx, yy, Z, cmap=plt.cm.Blues_r)
+    
+    data_for_host = data[np.where(data[:,len(data[0]) - 1] == host)]
+    
+    plt.scatter(data_for_host[:,0], data_for_host[:,1], color='green', s=50)
+    plt.title('Compared to its category/cluster past')
+    
+    plt.subplot(1,2,2)
+
+    Z1 = np.zeros(len(xx)*len(xx))
+    
+    for i, point in enumerate(np.c_[xx.ravel(), yy.ravel()]):
+        Z1[i] = em.score_anomaly_for_category(point, category, host)
+
+    Z1 = Z1 - temp / 2
+    
+    Z1 = Z1 / np.max(Z1)
+    
+
+    Z1 = Z1.reshape(xx.shape)
+
+
+    plt.contourf(xx, yy, Z1, cmap=plt.cm.Blues_r)
+
+    
+    plt.scatter(data_for_host[:,0], data_for_host[:,1], color='green', s=50)
+    plt.title('Compared to its own past')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    
+    return sorted([(point, em.score_anomaly_for_category(point, category, host)) for point in data_for_host], key=lambda tup: tup[1])

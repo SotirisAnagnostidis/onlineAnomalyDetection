@@ -1,7 +1,6 @@
 from math import log
 import numpy as np
 from dsio.anomaly_detectors import AnomalyMixin
-from dsio.update_formulae import decision_rule
 from sklearn.cluster import KMeans
 import scipy.stats.distributions
 
@@ -14,7 +13,7 @@ def poisson(x, l):
 
 
 class OnlineEM(AnomalyMixin):
-    def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold=0.0001):
+    def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold='auto', verbose=0):
         """
         :param gammas: 
         :param lambdas: 
@@ -52,8 +51,14 @@ class OnlineEM(AnomalyMixin):
         self.probabilities_per_kMean_cluster = np.zeros(shape=(n_clusters, self.m))
         # each cluster has a number of hosts in it
         self.counts_per_kMeans_cluster = np.zeros(n_clusters)
+
         self.n_clusters = n_clusters
-        self.threshold = threshold
+        if threshold == 'auto':
+            self.threshold = pow(0.01, self.dim)
+        else:
+            self.threshold = threshold
+
+        self.verbose = verbose
 
     def calculate_participation(self, data):
         """
@@ -136,7 +141,8 @@ class OnlineEM(AnomalyMixin):
         if host in self.hosts:
             host_points = self.hosts[host]['n_points']
 
-            self.hosts[host]['group'] = (self.closest_centers([point]) + self.hosts[host]['group'] * host_points) / \
+            point_center = self.closest_centers([point])
+            self.hosts[host]['group'] = (point_center + self.hosts[host]['group'] * host_points) / \
                                         (host_points + 1)
 
             # the number of data points for the host
@@ -165,11 +171,18 @@ class OnlineEM(AnomalyMixin):
         while pos < len(data):
             batch, pos = self.get_new_batch(data, pos)
 
+            if self.verbose > 0:
+                print('Running for data till position', pos, 'from total', len(data))
+
             self.update_parameters(batch)
 
         # upon initialization self.hosts should not contain a key for host
+        # TODO memory intensive
         for point in x:
             self.update_host(point)
+
+        if self.verbose > 0:
+            print('Running clustering algorithm')
 
         closest_centers = []
 
@@ -207,12 +220,18 @@ class OnlineEM(AnomalyMixin):
 
             # kMeans center should be updated every a number of batch updates??
 
-    def score_anomaly_for_category(self, x, category=None):
-        f = self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])
+    def score_anomaly_for_category(self, x, category=None, host=None):
+        f = np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])
         if category is not None:
             # calculate based on the probabilities within the cluster
             gammas_for_cluster = self.probabilities_per_kMean_cluster[category]
-            score = np.max(f * gammas_for_cluster)
+            score_cluster = np.sum(f * gammas_for_cluster)
+            if host is None:
+                return score_cluster
+
+            gammas_for_host = self.hosts[host]['group']
+            score_host = np.sum(f * gammas_for_host)
+            score = sum([score_cluster, score_host]) / 2
         else:
             # calculate based on the global probabilities
             score = np.max(f * self.gammas)
@@ -224,7 +243,7 @@ class OnlineEM(AnomalyMixin):
         for point in x:
             host = point[-1]
             if host in self.hosts:
-                score = self.score_anomaly_for_category(point[:-1], category=self.hosts[host]['category'])
+                score = self.score_anomaly_for_category(point[:-1], category=self.hosts[host]['category'], host=host)
             else:
                 score = self.score_anomaly_for_category(point[:-1])
 
