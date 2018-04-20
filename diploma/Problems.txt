@@ -1,7 +1,16 @@
-- Online EM has a reducing update factor and cannot respond to changes of the data points
+MAJOR
+====================================================================================================================================
 
 - Clustering of hosts cannot be achieved naively online. Recluster after batch or enough changes? Maybe a better way to implement this.
+
+- How to clusters behaviors?
 
 - Not all points are represented by the clustering Poisson distributions. As a result a very small mass function value is computed for a lot of the points. Maybe combine an ierarchical approach too?
 
 - What is the best way to flag anomalies?
+
+====================================================================================================================================
+
+- Online EM has a reducing update factor and cannot respond to changes of the data points
+
+- the size of the bucket in group will affect the time the algorithms requires to respond

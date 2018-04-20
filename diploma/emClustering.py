@@ -12,6 +12,14 @@ def poisson(x, l):
     return return_value
 
 
+def poisson_cumulative(x, l):
+    return_value = 1
+    for x_i, l_i in zip(x, l):
+        cumulative_prob = scipy.stats.distributions.poisson.cdf(x_i, l_i)
+        return_value *= min(cumulative_prob, 1 - cumulative_prob)
+    return return_value
+
+
 class OnlineEM(AnomalyMixin):
     def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold='auto', verbose=0):
         """
@@ -72,6 +80,7 @@ class OnlineEM(AnomalyMixin):
             f[i] = (self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])) / total_x
         return f
 
+    # TODO take into account the size of the batch
     def calculate_likelihood(self, data):
         # naive implementation for likelihood calculation
         new_likelihood = 0
@@ -142,6 +151,8 @@ class OnlineEM(AnomalyMixin):
             host_points = self.hosts[host]['n_points']
 
             point_center = self.closest_centers([point])
+            point_center = np.array([-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
+
             self.hosts[host]['group'] = (point_center + self.hosts[host]['group'] * host_points) / \
                                         (host_points + 1)
 
@@ -150,7 +161,10 @@ class OnlineEM(AnomalyMixin):
         else:
             self.hosts[host] = {}
             # create a self.m array containing the proportion of participation for this host for every center of poisson
-            self.hosts[host]['group'] = self.closest_centers([point])
+
+            point_center = self.closest_centers([point])
+            self.hosts[host]['group'] = np.array(
+                [-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
 
             # the number of data points for the host
             self.hosts[host]['n_points'] = 1
@@ -221,7 +235,7 @@ class OnlineEM(AnomalyMixin):
             # kMeans center should be updated every a number of batch updates??
 
     def score_anomaly_for_category(self, x, category=None, host=None):
-        f = np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])
+        f = np.array([poisson_cumulative(x, lambda_i) for lambda_i in self.lambdas])
         if category is not None:
             # calculate based on the probabilities within the cluster
             gammas_for_cluster = self.probabilities_per_kMean_cluster[category]
