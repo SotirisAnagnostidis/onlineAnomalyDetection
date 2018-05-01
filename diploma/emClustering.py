@@ -43,8 +43,8 @@ class OnlineEM(AnomalyMixin):
 
         # list of the gammas_i
         # each element represent the value of gamma_i for an iteration
-        self.gammas_over_time = [[] for _ in gammas]
-        self.lambdas_over_time = [[] for _ in lambdas]
+        self.gammas_over_time = [[x] for x in gammas]
+        self.lambdas_over_time = [[x] for x in lambdas]
         self.likelihood = []
 
         # number of current iteration
@@ -248,7 +248,7 @@ class OnlineEM(AnomalyMixin):
             score = sum([score_cluster, score_host]) / 2
         else:
             # calculate based on the global probabilities
-            score = np.max(f * self.gammas)
+            score = np.sum(f * self.gammas)
         return score
 
     # TODO

@@ -24,7 +24,7 @@ def plot_points(data, em):
 
     blue_patch = mpatches.Patch(color='blue', label='Data points')
     red_patch = mpatches.Patch(color='red', label='Centers of Poisson')
-    plt.legend(handles=[red_patch, blue_patch])
+    plt.legend(handles=[red_patch, blue_patch], fontsize=18)
     plt.show()
     
     
@@ -36,7 +36,7 @@ def plot_results(em_algorithm, legend=True):
 
     matplotlib.rcParams.update({'font.size': 16})
 
-    x = range(1, len(em_algorithm.get_gammas()[1]) + 1)
+    x = range(0, len(em_algorithm.get_gammas()[1]))
 
     plt.title('Online EM results')
 
@@ -61,11 +61,6 @@ def plot_results(em_algorithm, legend=True):
     plt.ylabel('estimated weight')
     if legend:
         plt.legend()
-    plt.grid()
-    
-    plt.subplot(3, 1, 3, sharex=ax)
-    plt.plot(x, em_algorithm.get_likelihood())
-    plt.ylabel('likelihood')
     plt.grid()
     
     plt.tight_layout()
@@ -166,3 +161,37 @@ def plot_for_host(host, em, data, limits_x=[-5,105], limits_y=[-5,105], number_o
     
     
     return sorted([(point, em.score_anomaly_for_category(point, category, host)) for point in data_for_host], key=lambda tup: tup[1])
+
+def plot_parameter_updates(data, em):
+    rcParams['figure.figsize'] = 16, 9
+    data_hashable = [tuple(x) for x in data]
+    total_points = len(data_hashable)
+
+    values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
+    counts = np.array(list(Counter(data_hashable).values()))
+
+    for i in range(len(values)):
+        poisson_center = np.argmax(em.calculate_participation([values[i]]))
+        plt.scatter(values[i][0], values[i][1], s=counts[i]*10000/total_points, color=colors[poisson_center])
+        
+    for i, lambda_i_updates in enumerate(em.get_lambdas()):
+        steps = len(lambda_i_updates)
+        for j, lambda_i in enumerate(lambda_i_updates):
+            plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*200, linewidth=4, color=colors[i])
+            if j < steps - 1:
+                plt.arrow(lambda_i_updates[j][0], lambda_i_updates[j][1], lambda_i_updates[j + 1][0] - lambda_i_updates[j][0], 
+                          lambda_i_updates[j + 1][1] - lambda_i_updates[j][1], 
+                          length_includes_head=True, head_width=0.3, color='black', alpha=1.0/(steps-j))
+    
+    # HARD CODED
+    for i, lambda_i_updates in enumerate(em.get_lambdas()):
+        plt.axes([.65, .70 - i *0.20, .23, .15])
+        for j, lambda_i in enumerate(lambda_i_updates):
+            plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*200, linewidth=4, color=colors[i])
+            if j < steps - 1:
+                plt.arrow(lambda_i_updates[j][0], lambda_i_updates[j][1], lambda_i_updates[j + 1][0] - lambda_i_updates[j][0], 
+                          lambda_i_updates[j + 1][1] - lambda_i_updates[j][1], 
+                          length_includes_head=True, color='black', alpha=1.0/(steps-j))
+    
+
+    plt.show()
