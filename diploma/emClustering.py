@@ -21,12 +21,13 @@ def poisson_cumulative(x, l):
 
 
 class OnlineEM(AnomalyMixin):
-    def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold='auto', verbose=0):
+    def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold='auto', update_power=1, verbose=0):
         """
         :param gammas: 
         :param lambdas: 
         :param segment_length: 
         :param n_clusters: the different profiles to create for the kind of users 
+        :param update_power: the power that determmines the update faktor in each iteration of the online algorithm
         """
         # gammas and lambdas are the initialization
         self.gammas = np.array(gammas)
@@ -49,6 +50,8 @@ class OnlineEM(AnomalyMixin):
 
         # number of current iteration
         self.iteration_k = 1
+        
+        self.update_power = update_power
 
         # a dictionary containing for each host valuable information
         self.hosts = {}
@@ -106,7 +109,7 @@ class OnlineEM(AnomalyMixin):
         # update gammas and lambdas
         temp_sum = f.sum(axis=0)
 
-        update_factor = 1 / (pow(self.iteration_k, 0.6))
+        update_factor = 1 / (pow(self.iteration_k, self.update_power))
 
         self.gammas = (1 - update_factor) * self.gammas + update_factor * (temp_sum / n)
 
@@ -151,7 +154,7 @@ class OnlineEM(AnomalyMixin):
             host_points = self.hosts[host]['n_points']
 
             point_center = self.closest_centers([point])
-            point_center = np.array([-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
+            #point_center = np.array([-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
 
             self.hosts[host]['group'] = (point_center + self.hosts[host]['group'] * host_points) / \
                                         (host_points + 1)
@@ -163,8 +166,9 @@ class OnlineEM(AnomalyMixin):
             # create a self.m array containing the proportion of participation for this host for every center of poisson
 
             point_center = self.closest_centers([point])
-            self.hosts[host]['group'] = np.array(
-                [-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
+            self.hosts[host]['group'] = point_center
+            #self.hosts[host]['group'] = np.array(
+            #    [-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
 
             # the number of data points for the host
             self.hosts[host]['n_points'] = 1

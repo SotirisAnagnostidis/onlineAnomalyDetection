@@ -100,7 +100,7 @@ def group_data(df, size_of_bin_seconds=50, doScale=True, scaler=None):
         groupped_data['source computer'] = data_reset['source computer']
     return groupped_data, hosts
 
-def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', addZeros=True, hosts=None):
+def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', addZeros=True, hosts=None, verbose=0):
     """
     :param size_of_bin_seconds: the time period of each bin,
                 assumes the dataframe has a column names 'source computer' and a name 'byte count'
@@ -126,12 +126,26 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
 
     data_reset = data.reset_index()
 
-    for host in hosts:
-        for bin_i in range(1,len(bins)):
-            if (bin_i, host) not in data.index:
-                new_row = [bin_i, host, 0.0, 0.0]
-                data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
+    if verbose > 0:
+        print('A total of', len(bins) - 1, 'time epochs have been encountered')
+    
+    len_hosts = len(hosts)
+    intervals = int(len_hosts / 20)
+    i = 0
+    
+    if addZeros:
+        for host in hosts:
+            if verbose > 0 and i % intervals == 0:
+                print('Done with', i, 'hosts out of', len_hosts)
+            i += 1
 
+            for bin_i in range(1,len(bins)):
+                if (bin_i, host) not in data.index:
+                    new_row = [bin_i, host, 0.0, 0.0]
+                    data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
+
+    if verbose > 0:
+        print('Scaeling...')
     if doScale:
         scaler.fit(np.append(data_reset.values[:,2:], np.array([[1, 1]]), axis=0))
         groupped_data = pd.DataFrame(scaler.transform(data_reset.values[:,2:]), columns=['number of flows', 'mean(byte count)'])
@@ -148,6 +162,7 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
     parameters['doScale'] = doScale
     parameters['size_of_bin_seconds'] = size_of_bin_seconds
     parameters['hosts'] = hosts
+    parameters['addZeros'] = addZeros
 
     return groupped_data.sort_values(by=['epoch']), hosts, parameters
 
@@ -158,7 +173,8 @@ def group_scale_data_batch(df, parameters, setHosts=False):
     
     scaler = parameters['scaler']
     doScale = parameters['doScale']
-    size_of_bin_seconds = parameters['size_of_bin_seconds']    
+    size_of_bin_seconds = parameters['size_of_bin_seconds']  
+    addZeros = parameters['addZeros'] 
     
     if setHosts:
         hosts = np.array(list(set(df['source computer'].values)))
@@ -175,11 +191,12 @@ def group_scale_data_batch(df, parameters, setHosts=False):
 
     data_reset = data.reset_index()
 
-    for host in hosts:
-        for bin_i in range(1,len(bins)):
-            if (bin_i, host) not in data.index:
-                new_row = [bin_i, host, 0.0, 0.0]
-                data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
+    if addZeros:
+        for host in hosts:
+            for bin_i in range(1,len(bins)):
+                if (bin_i, host) not in data.index:
+                    new_row = [bin_i, host, 0.0, 0.0]
+                    data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
 
     if doScale:
         groupped_data = pd.DataFrame(scaler.transform(data_reset.values[:,2:]), columns=['number of flows', 'mean(byte count)'])
@@ -189,11 +206,5 @@ def group_scale_data_batch(df, parameters, setHosts=False):
         groupped_data = pd.DataFrame(data_reset.values[:,2:], columns=['number of flows', 'mean(byte count)'])
         groupped_data['epoch'] = data_reset['level_0']
         groupped_data['source computer'] = data_reset['source computer']
-
-    # set parameters for next acquisition of data
-    parameters = {}
-    parameters['scaler'] = scaler
-    parameters['doScale'] = doScale
-    parameters['size_of_bin_seconds'] = size_of_bin_seconds
 
     return groupped_data.sort_values(by=['epoch']), hosts
