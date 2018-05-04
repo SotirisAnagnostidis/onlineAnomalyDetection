@@ -8,7 +8,7 @@ colors = ['blue', 'red', 'green', 'yellow']
 styles = ['-','--',':','-.']
 
 
-def plot_points(data, em):
+def plot_points(data, em=None):
     rcParams['figure.figsize'] = 16, 9
     data_hashable = [tuple(x) for x in data]
     total_points = len(data_hashable)
@@ -19,12 +19,16 @@ def plot_points(data, em):
     for i in range(len(values)):
         plt.scatter(values[i][0], values[i][1], s=counts[i]*10000/total_points, color='blue')
         
-    for i, lambda_i in enumerate(em.lambdas):
-        plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*1000, linewidth=4, color='red', marker='x')
+    if em:
+        for i, lambda_i in enumerate(em.lambdas):
+            plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*1000, linewidth=4, color='red', marker='x')
 
-    blue_patch = mpatches.Patch(color='blue', label='Data points')
-    red_patch = mpatches.Patch(color='red', label='Centers of Poisson')
-    plt.legend(handles=[red_patch, blue_patch], fontsize=18)
+        blue_patch = mpatches.Patch(color='blue', label='Data points')
+        red_patch = mpatches.Patch(color='red', label='Centers of Poisson')
+        plt.legend(handles=[red_patch, blue_patch], fontsize=18)
+    else:
+        blue_patch = mpatches.Patch(color='blue', label='Data points')
+        plt.legend(handles=[blue_patch], fontsize=18)
     plt.show()
     
     
