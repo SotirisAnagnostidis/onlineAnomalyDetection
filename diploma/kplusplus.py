@@ -32,6 +32,7 @@ class KPlusPlus:
         else:
             self.x = x
 
+        self.overflow_avoid = len(x) + 1
         self.centers = []
         self.random_seed = random_seed
         
@@ -50,6 +51,9 @@ class KPlusPlus:
         self.distances = np.min(np.column_stack((self._distances(testing_center), self.distances.T)), axis=1)
 
     def _choose_next_center(self):
+        # avoid overflow
+        self.distances[self.distances > np.finfo(np.float64).max / self.overflow_avoid] =  np.finfo(np.float64).max / self.overflow_avoid
+        
         self.probabilities = self.distances / self.distances.sum()
         self.cumulativeProbabilities = self.probabilities.cumsum()
         r = random.random()

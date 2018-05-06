@@ -21,7 +21,7 @@ def poisson_cumulative(x, l):
 
 
 class OnlineEM(AnomalyMixin):
-    def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold='auto', update_power=1, verbose=0):
+    def __init__(self, gammas, lambdas, segment_length, n_clusters=4, threshold='auto', update_power=1.0, verbose=0):
         """
         :param gammas: 
         :param lambdas: 
@@ -50,7 +50,7 @@ class OnlineEM(AnomalyMixin):
 
         # number of current iteration
         self.iteration_k = 1
-        
+
         self.update_power = update_power
 
         # a dictionary containing for each host valuable information
@@ -60,8 +60,12 @@ class OnlineEM(AnomalyMixin):
         self.kMeans = KMeans(n_clusters=n_clusters, random_state=0)
         # each cluster has points in each center with a probability
         self.probabilities_per_kMean_cluster = np.zeros(shape=(n_clusters, self.m))
+
         # each cluster has a number of hosts in it
-        self.counts_per_kMeans_cluster = np.zeros(n_clusters)
+        self.hosts_per_kMeans_cluster = np.zeros(n_clusters)
+
+        # each cluster has a number of points in it
+        self.points_per_EM_cluster = np.zeros(self.m)
 
         self.n_clusters = n_clusters
         if threshold == 'auto':
@@ -71,6 +75,9 @@ class OnlineEM(AnomalyMixin):
 
         self.verbose = verbose
 
+        # HMM matrix
+        self.transition_matrix = np.eye(self.m)
+
     def calculate_participation(self, data):
         """
         :param data: n array of the data to train
@@ -79,8 +86,9 @@ class OnlineEM(AnomalyMixin):
         """
         f = np.zeros(shape=(len(data), self.m))
         for i, x in enumerate(data):
-            total_x = np.sum(self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas]))
-            f[i] = (self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])) / total_x
+            participation = self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])
+            total_x = np.sum(participation)
+            f[i] = participation / total_x
         return f
 
     # TODO take into account the size of the batch
@@ -92,11 +100,13 @@ class OnlineEM(AnomalyMixin):
             new_likelihood = new_likelihood + log(total_x)
         return new_likelihood
 
-    def update_parameters(self, data):
+    def update_parameters(self, batch):
         """
         :param data: the batch data 
         updates gammas, lambdas and likelihood
         """
+
+        data = batch[:, :-1]
 
         self.iteration_k += 1
         n = len(data)
@@ -127,7 +137,12 @@ class OnlineEM(AnomalyMixin):
         for i, lambda_i in enumerate(self.lambdas):
             self.lambdas_over_time[i].append(lambda_i)
 
-        self.likelihood.append(self.calculate_likelihood(data))
+        # self.likelihood.append(self.calculate_likelihood(data))
+
+        # upon initialization self.hosts should not contain a key for host
+        # TODO memory intensive
+        for point in batch:
+            self.update_host(point)
 
     def get_new_batch(self, data, pos):
         n = len(data)
@@ -154,20 +169,39 @@ class OnlineEM(AnomalyMixin):
             host_points = self.hosts[host]['n_points']
 
             point_center = self.closest_centers([point])
-            #point_center = np.array([-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
+            # point_center = np.array([-pow(x-0.5, 2) if x < 0.5 else pow(x-0.5, 2) for x in point_center]) * 2 + 0.5
 
             self.hosts[host]['group'] = (point_center + self.hosts[host]['group'] * host_points) / \
                                         (host_points + 1)
 
             # the number of data points for the host
             self.hosts[host]['n_points'] += 1
+
+            # update transpose matrix
+            closest_center = np.argmax(point_center)
+
+            new_transpose = np.zeros(self.m)
+            new_transpose[closest_center] = 1
+
+            previous_point = self.hosts[host]['previous']
+            points_for_cluster = self.points_per_EM_cluster[previous_point]
+
+            self.transition_matrix[previous_point] = (self.transition_matrix[previous_point] * points_for_cluster +
+                                                      new_transpose) / (points_for_cluster + 1)
+
+            self.hosts[host]['previous'] = closest_center
+            self.points_per_EM_cluster[previous_point] += 1
+
         else:
             self.hosts[host] = {}
             # create a self.m array containing the proportion of participation for this host for every center of poisson
 
             point_center = self.closest_centers([point])
             self.hosts[host]['group'] = point_center
-            #self.hosts[host]['group'] = np.array(
+
+            closest_center = np.argmax(point_center)
+            self.hosts[host]['previous'] = closest_center
+            # self.hosts[host]['group'] = np.array(
             #    [-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
 
             # the number of data points for the host
@@ -184,20 +218,15 @@ class OnlineEM(AnomalyMixin):
 
         features = len(x[0])
         # the starting position of the current batch in the data
-        data = x[:, 0:features - 1]
+
         pos = 0
-        while pos < len(data):
-            batch, pos = self.get_new_batch(data, pos)
+        while pos < len(x):
+            batch, pos = self.get_new_batch(x, pos)
 
             if self.verbose > 0:
-                print('Running for data till position', pos, 'from total', len(data))
+                print('Running for data till position', pos, 'from total', len(x))
 
             self.update_parameters(batch)
-
-        # upon initialization self.hosts should not contain a key for host
-        # TODO memory intensive
-        for point in x:
-            self.update_host(point)
 
         if self.verbose > 0:
             print('Running clustering algorithm')
@@ -212,13 +241,13 @@ class OnlineEM(AnomalyMixin):
         for host in self.hosts.keys():
             category = self.kMeans.predict([self.hosts[host]['group']])[0]
             self.hosts[host]['category'] = category
-            points_in_cluster = self.counts_per_kMeans_cluster[category]
+            points_in_cluster = self.hosts_per_kMeans_cluster[category]
 
             self.probabilities_per_kMean_cluster[category] = \
                 (self.probabilities_per_kMean_cluster[category] * points_in_cluster + self.hosts[host]['group']) / \
                 (points_in_cluster + 1)
 
-            self.counts_per_kMeans_cluster[category] += 1
+            self.hosts_per_kMeans_cluster[category] += 1
 
     def update(self, x):
         """
@@ -289,3 +318,5 @@ class OnlineEM(AnomalyMixin):
         """
         return ((-2) / self.iteration_k) * self.calculate_likelihood(data) + log(len(data)) * (
             2 * self.m - 1), self.calculate_likelihood(data)
+
+

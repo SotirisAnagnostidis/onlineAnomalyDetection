@@ -6,7 +6,7 @@ import matplotlib.patches as mpatches
 
 colors = ['blue', 'red', 'green', 'yellow']
 styles = ['-','--',':','-.']
-
+rcParams['font.size'] = 16
 
 def plot_points(data, em=None):
     rcParams['figure.figsize'] = 16, 9
@@ -24,11 +24,14 @@ def plot_points(data, em=None):
             plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*1000, linewidth=4, color='red', marker='x')
 
         blue_patch = mpatches.Patch(color='blue', label='Data points')
-        red_patch = mpatches.Patch(color='red', label='Centers of Poisson')
+        red_patch = mpatches.Patch(color='red', label='Centers of Distribution')
         plt.legend(handles=[red_patch, blue_patch], fontsize=18)
     else:
         blue_patch = mpatches.Patch(color='blue', label='Data points')
         plt.legend(handles=[blue_patch], fontsize=18)
+    
+    plt.ylabel('average number of bytes')
+    plt.xlabel('number of flows')
     plt.show()
     
     
