@@ -145,7 +145,7 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
                     data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
 
     if verbose > 0:
-        print('Scaeling...')
+        print('Scaling...')
     if doScale:
         scaler.fit(np.append(data_reset.values[:,2:], np.array([[1, 1]]), axis=0))
         groupped_data = pd.DataFrame(scaler.transform(data_reset.values[:,2:]), columns=['number of flows', 'mean(byte count)'])
@@ -164,6 +164,8 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
     parameters['hosts'] = hosts
     parameters['addZeros'] = addZeros
 
+    groupped_data = groupped_data.sample(frac=1)
+    
     return groupped_data.sort_values(by=['epoch']), hosts, parameters
 
 def group_scale_data_batch(df, parameters, setHosts=False):
@@ -207,4 +209,6 @@ def group_scale_data_batch(df, parameters, setHosts=False):
         groupped_data['epoch'] = data_reset['level_0']
         groupped_data['source computer'] = data_reset['source computer']
 
+    groupped_data = groupped_data.sample(frac=1)
+    
     return groupped_data.sort_values(by=['epoch']), hosts

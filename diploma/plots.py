@@ -91,6 +91,7 @@ def _plot_category(xx, yy, Z, category, em):
 
     
 def plot_category(category, em, limits_x=[-5,105], limits_y=[-5,105], number_of_points=50):
+    rcParams['figure.figsize'] = 16, 12
     # plot the level sets of the decision function
     xx, yy = np.meshgrid(np.linspace(limits_x[0], limits_x[1], number_of_points, dtype=np.int64),
                          np.linspace(limits_y[0], limits_y[1], number_of_points, dtype=np.int64))
@@ -201,4 +202,22 @@ def plot_parameter_updates(data, em):
                           length_includes_head=True, color='black', alpha=1.0/(steps-j))
     
 
+    plt.show()
+    
+def plot_hosts(hosts, data):
+    total = len(hosts)
+
+    rcParams['figure.figsize'] = 16, (total + 2)/3 * 4
+
+    for i, host in enumerate(hosts):    
+        plt.subplot((total + 2)/3, 3, i + 1)
+
+        points = data[data['source computer'] == host].values
+
+        plt.scatter(points[:, 0], points[:, 1])
+        plt.xlim([-5, 105])
+        plt.ylim([-5, 105])
+        plt.title('Host ' + host)
+
+    plt.tight_layout()
     plt.show()
