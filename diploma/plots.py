@@ -218,6 +218,7 @@ def plot_hosts(hosts, data):
         plt.xlim([-5, 105])
         plt.ylim([-5, 105])
         plt.title('Host ' + host)
+        plt.grid()
 
     plt.tight_layout()
     plt.show()
