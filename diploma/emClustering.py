@@ -1,8 +1,8 @@
 from math import log
-import numpy as np
 from dsio.anomaly_detectors import AnomalyMixin
 from sklearn.cluster import KMeans
 import scipy.stats.distributions
+import numpy as np
 
 
 def poisson(x, l):
@@ -65,7 +65,8 @@ class OnlineEM(AnomalyMixin):
         self.hosts_per_kMeans_cluster = np.zeros(n_clusters)
 
         # each cluster has a number of points in it
-        self.points_per_EM_cluster = np.zeros(self.m)
+        self.hard_points_per_EM_cluster = np.zeros(self.m)
+        self.soft_points_per_EM_cluster = np.zeros(self.m)
 
         self.n_clusters = n_clusters
         if threshold == 'auto':
@@ -76,7 +77,8 @@ class OnlineEM(AnomalyMixin):
         self.verbose = verbose
 
         # HMM matrix
-        self.transition_matrix = np.eye(self.m)
+        self.hard_transition_matrix = np.eye(self.m)
+        self.soft_transition_matrix = np.eye(self.m)
 
     def calculate_participation(self, data):
         """
@@ -177,20 +179,30 @@ class OnlineEM(AnomalyMixin):
             # the number of data points for the host
             self.hosts[host]['n_points'] += 1
 
+            ###
             # update transpose matrix
+            previous_point = self.hosts[host]['hard_previous']
+
             closest_center = np.argmax(point_center)
 
             new_transpose = np.zeros(self.m)
             new_transpose[closest_center] = 1
 
-            previous_point = self.hosts[host]['previous']
-            points_for_cluster = self.points_per_EM_cluster[previous_point]
+            points_for_cluster = self.hard_points_per_EM_cluster[previous_point]
 
-            self.transition_matrix[previous_point] = (self.transition_matrix[previous_point] * points_for_cluster +
-                                                      new_transpose) / (points_for_cluster + 1)
+            self.hard_transition_matrix[previous_point] = (self.hard_transition_matrix[previous_point] *
+                                                           points_for_cluster + new_transpose) / \
+                                                          (points_for_cluster + 1)
 
-            self.hosts[host]['previous'] = closest_center
-            self.points_per_EM_cluster[previous_point] += 1
+            for i, previous in enumerate(self.hosts[host]['soft_previous']):
+                self.soft_transition_matrix[i] = (self.soft_transition_matrix[i] * self.soft_points_per_EM_cluster[i] +
+                                                  point_center * previous) / (self.soft_points_per_EM_cluster[i] +
+                                                                              previous)
+                self.soft_points_per_EM_cluster[i] += previous
+
+            self.hosts[host]['hard_previous'] = closest_center
+            self.hosts[host]['soft_previous'] = point_center
+            self.hard_points_per_EM_cluster[previous_point] += 1
 
         else:
             self.hosts[host] = {}
@@ -200,7 +212,8 @@ class OnlineEM(AnomalyMixin):
             self.hosts[host]['group'] = point_center
 
             closest_center = np.argmax(point_center)
-            self.hosts[host]['previous'] = closest_center
+            self.hosts[host]['hard_previous'] = closest_center
+            self.hosts[host]['soft_previous'] = point_center
             # self.hosts[host]['group'] = np.array(
             #    [-pow(x - 0.5, 2) if x < 0.5 else pow(x - 0.5, 2) for x in point_center]) * 2 + 0.5
 
@@ -318,5 +331,3 @@ class OnlineEM(AnomalyMixin):
         """
         return ((-2) / self.iteration_k) * self.calculate_likelihood(data) + log(len(data)) * (
             2 * self.m - 1), self.calculate_likelihood(data)
-
-
