@@ -204,21 +204,24 @@ def plot_parameter_updates(data, em):
 
     plt.show()
     
-def plot_hosts(hosts, data):
+def plot_hosts(hosts, data, xlims=[-5, 105], ylims=[-5, 105], colorByTime=False):
     total = len(hosts)
 
     rcParams['figure.figsize'] = 16, (total + 2)/3 * 4
+    max_epoch = np.max(data.values[:,2])
 
     for i, host in enumerate(hosts):    
         plt.subplot((total + 2)/3, 3, i + 1)
 
         points = data[data['source computer'] == host].values
-
-        plt.scatter(points[:, 0], points[:, 1])
-        plt.xlim([-5, 105])
-        plt.ylim([-5, 105])
+        
+        if colorByTime:
+            plt.scatter(points[:, 0], points[:, 1], c=points[:, 2], alpha=0.5)
+        else:
+            plt.scatter(points[:, 0], points[:, 1])
+        plt.xlim(xlims)
+        plt.ylim(ylims)
         plt.title('Host ' + host)
-        plt.grid()
 
     plt.tight_layout()
     plt.show()
