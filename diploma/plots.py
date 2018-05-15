@@ -11,13 +11,13 @@ rcParams['font.size'] = 16
 def plot_points(data, em=None):
     rcParams['figure.figsize'] = 16, 9
     data_hashable = [tuple(x) for x in data]
-    total_points = len(data_hashable)
+    total_points = len(data_hashable) / 100
 
     values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
     counts = np.array(list(Counter(data_hashable).values()))
 
     for i in range(len(values)):
-        plt.scatter(values[i][0], values[i][1], s=counts[i]*10000/total_points, color='blue')
+        plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='blue')
         
     if em:
         for i, lambda_i in enumerate(em.lambdas):

@@ -90,6 +90,11 @@ class OnlineEM(AnomalyMixin):
         for i, x in enumerate(data):
             participation = self.gammas * np.array([poisson(x, lambda_i) for lambda_i in self.lambdas])
             total_x = np.sum(participation)
+            
+            # TODO
+            if total_x == 0:
+                participation = np.array([1/self.m] * self.m)
+                total_x = 1
             f[i] = participation / total_x
         return f
 
@@ -203,6 +208,13 @@ class OnlineEM(AnomalyMixin):
             self.hosts[host]['hard_previous'] = closest_center
             self.hosts[host]['soft_previous'] = point_center
             self.hard_points_per_EM_cluster[previous_point] += 1
+            
+            
+            points_for_cluster_host = self.hosts[host]['points_per_cluster'][previous_point]
+            self.hosts[host]['transitiion_matrix'][previous_point] = (self.hosts[host]['transitiion_matrix'][previous_point] *
+                                                           points_for_cluster_host + new_transpose) / \
+                                                          (points_for_cluster_host + 1)
+            self.hosts[host]['points_per_cluster'][previous_point] += 1
 
         else:
             self.hosts[host] = {}
@@ -219,6 +231,10 @@ class OnlineEM(AnomalyMixin):
 
             # the number of data points for the host
             self.hosts[host]['n_points'] = 1
+            
+            # Host specific HMM
+            self.hosts[host]['transitiion_matrix'] = np.eye(self.m)
+            self.hosts[host]['points_per_cluster'] = np.zeros(self.m)
 
     def fit(self, x):
         """
