@@ -9,7 +9,7 @@ def scale(x):
    
 
 class customScaler():
-    def __init__(self, feature_range=(1,100)):
+    def __init__(self, feature_range=(0,100)):
         self.feature_range = feature_range
     
     def fit(self, x):
@@ -92,13 +92,16 @@ def group_data(df, size_of_bin_seconds=50, doScale=True, scaler=None):
     
     data_reset = data.reset_index()
     if doScale:
-        scaler.fit(np.append(data.values, np.array([[1, 1]]), axis=0))
+        scaler.fit(np.append(data.values, np.array([[0, 0]]), axis=0))
         groupped_data = pd.DataFrame(scaler.transform(data), columns=['number of flows', 'mean(byte count)'])
         groupped_data['source computer'] = data_reset['source computer']
     else:
         groupped_data = pd.DataFrame(data.values, columns=['number of flows', 'mean(byte count)'])
         groupped_data['source computer'] = data_reset['source computer']
     return groupped_data, hosts
+
+def clear_df(df, hosts):
+    return df[df['source computer'].isin(hosts)]
 
 def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', addZeros=True, hosts=None, verbose=0):
     """
@@ -115,6 +118,8 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
 
     if hosts is None:
         hosts = np.array(list(set(df['source computer'].values)))
+    else:
+        df = clear_df(df, hosts)
 
     bins = np.arange(df.index.min(), df.index.max() + size_of_bin_seconds + 1, size_of_bin_seconds)
 
@@ -130,10 +135,11 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
         print('A total of', len(bins) - 1, 'time epochs have been encountered')
     
     len_hosts = len(hosts)
-    intervals = int(len_hosts / 20)
+    intervals = int(len_hosts / 10)
     i = 0
     
     if addZeros:
+        add_new = []
         for host in hosts:
             if verbose > 0 and i % intervals == 0:
                 print('Done with', i, 'hosts out of', len_hosts)
@@ -142,12 +148,15 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
             for bin_i in range(1,len(bins)):
                 if (bin_i, host) not in data.index:
                     new_row = [bin_i, host, 0.0, 0.0]
-                    data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
+                    add_new.append(new_row)
+                    
+        
+        data_reset = data_reset.append(pd.DataFrame(add_new, columns=data_reset.columns), ignore_index=True )
 
     if verbose > 0:
         print('Scaling...')
     if doScale:
-        scaler.fit(np.append(data_reset.values[:,2:], np.array([[1, 1]]), axis=0))
+        scaler.fit(np.append(data_reset.values[:,2:], np.array([[0, 0]]), axis=0))
         groupped_data = pd.DataFrame(scaler.transform(data_reset.values[:,2:]), columns=['number of flows', 'mean(byte count)'])
         groupped_data['epoch'] = data_reset['level_0']
         groupped_data['source computer'] = data_reset['source computer']
@@ -168,7 +177,7 @@ def group_scale_data(df, size_of_bin_seconds=60, doScale=False, scaler='log', ad
     
     return groupped_data.sort_values(by=['epoch']), hosts, parameters
 
-def group_scale_data_batch(df, parameters, setHosts=False):
+def group_scale_data_batch(df, parameters, setHosts=False, verbose=0):
     """
     :param setHosts: get the new hosts if True else get the hosts we are interested in from the parameters
     """
@@ -182,6 +191,7 @@ def group_scale_data_batch(df, parameters, setHosts=False):
         hosts = np.array(list(set(df['source computer'].values)))
     else:
         hosts = parameters['hosts']
+        df = clear_df(df, hosts)
 
     bins = np.arange(df.index.min(), df.index.max() + size_of_bin_seconds + 1, size_of_bin_seconds)
 
@@ -192,13 +202,25 @@ def group_scale_data_batch(df, parameters, setHosts=False):
     data['mean(byte count)'] = groups.mean().values
 
     data_reset = data.reset_index()
-
+         
+    len_hosts = len(hosts)
+    intervals = int(len_hosts / 10)
+    i = 0       
+    
     if addZeros:
+        add_new = []
         for host in hosts:
+            if verbose > 0 and i % intervals == 0:
+                print('Done with', i, 'hosts out of', len_hosts)
+            i += 1
+
             for bin_i in range(1,len(bins)):
                 if (bin_i, host) not in data.index:
                     new_row = [bin_i, host, 0.0, 0.0]
-                    data_reset = data_reset.append(pd.DataFrame([new_row], columns=data_reset.columns), ignore_index=True )
+                    add_new.append(new_row)
+                    
+        
+        data_reset = data_reset.append(pd.DataFrame(add_new, columns=data_reset.columns), ignore_index=True )
 
     if doScale:
         groupped_data = pd.DataFrame(scaler.transform(data_reset.values[:,2:]), columns=['number of flows', 'mean(byte count)'])

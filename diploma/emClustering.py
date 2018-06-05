@@ -204,6 +204,11 @@ class OnlineEM(AnomalyMixin):
                                                   point_center * previous) / (self.soft_points_per_EM_cluster[i] +
                                                                               previous)
                 self.soft_points_per_EM_cluster[i] += previous
+                
+                self.hosts[host]['soft_transition_matrix'] = (self.hosts[host]['soft_transition_matrix'] * self.hosts[host]['soft_points_per_cluster'][i] + point_center * previous) / (self.hosts[host]['soft_points_per_cluster'][i] +
+                                                                              previous)
+                self.hosts[host]['soft_points_per_cluster'][i] += previous
+                
 
             self.hosts[host]['hard_previous'] = closest_center
             self.hosts[host]['soft_previous'] = point_center
@@ -211,7 +216,7 @@ class OnlineEM(AnomalyMixin):
             
             
             points_for_cluster_host = self.hosts[host]['points_per_cluster'][previous_point]
-            self.hosts[host]['transitiion_matrix'][previous_point] = (self.hosts[host]['transitiion_matrix'][previous_point] *
+            self.hosts[host]['transition_matrix'][previous_point] = (self.hosts[host]['transition_matrix'][previous_point] *
                                                            points_for_cluster_host + new_transpose) / \
                                                           (points_for_cluster_host + 1)
             self.hosts[host]['points_per_cluster'][previous_point] += 1
@@ -233,8 +238,10 @@ class OnlineEM(AnomalyMixin):
             self.hosts[host]['n_points'] = 1
             
             # Host specific HMM
-            self.hosts[host]['transitiion_matrix'] = np.eye(self.m)
+            self.hosts[host]['transition_matrix'] = np.eye(self.m)
             self.hosts[host]['points_per_cluster'] = np.zeros(self.m)
+            self.hosts[host]['soft_transition_matrix'] = np.eye(self.m)
+            self.hosts[host]['soft_points_per_cluster'] = np.zeros(self.m)
 
     def fit(self, x):
         """

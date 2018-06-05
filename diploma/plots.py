@@ -4,10 +4,24 @@ import numpy as np
 from collections import Counter
 import matplotlib.patches as mpatches
 
+import seaborn as sns
+
 colors = ['blue', 'red', 'green', 'yellow']
 styles = ['-','--',':','-.']
 rcParams['font.size'] = 16
 
+def plot_transition_matrix(em, kmeans, host):
+    rcParams['figure.figsize'] = 16, 9
+
+    plt.subplot(1,2,1)
+    ax = sns.heatmap(em.hosts[host]['transition_matrix'])
+    plt.title('Host transition matrix')
+    
+    plt.subplot(1,2,2)
+    ax = sns.heatmap(kmeans.centers[kmeans.assignments[host]])
+    plt.title('Kmeans center transition matrix')
+    plt.show()
+    
 def plot_points(data, em=None):
     rcParams['figure.figsize'] = 16, 9
     data_hashable = [tuple(x) for x in data]
@@ -34,6 +48,37 @@ def plot_points(data, em=None):
     plt.xlabel('number of flows')
     plt.show()
     
+def plot_points_host(data, hostData=None):
+    rcParams['figure.figsize'] = 16, 9
+    data_hashable = [tuple(x) for x in data]
+    total_points = len(data_hashable) / 100
+
+    values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
+    counts = np.array(list(Counter(data_hashable).values()))
+
+    for i in range(len(values)):
+        plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='blue')
+        
+    if hostData is not None:
+        
+        data_hashable = [tuple(x) for x in hostData]
+        total_points = len(data_hashable) / 100
+
+        values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
+        counts = np.array(list(Counter(data_hashable).values()))
+        for i in range(len(values)):
+            plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='red')
+
+        blue_patch = mpatches.Patch(color='blue', label='Data points')
+        red_patch = mpatches.Patch(color='red', label='Host data')
+        plt.legend(handles=[red_patch, blue_patch], fontsize=18)
+    else:
+        blue_patch = mpatches.Patch(color='blue', label='Data points')
+        plt.legend(handles=[blue_patch], fontsize=18)
+    
+    plt.ylabel('average number of bytes')
+    plt.xlabel('number of flows')
+    plt.show()
     
 def plot_results(em_algorithm, legend=True):
     import matplotlib
