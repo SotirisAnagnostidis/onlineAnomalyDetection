@@ -1,6 +1,9 @@
 from random import randint
 import numpy as np
 import pandas as pd
+from math import log
+import scipy.stats.distributions
+
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -22,6 +25,51 @@ class customScaler():
         transformed = self.scaler.transform(scaled_data).astype(int)
         return np.array(transformed, dtype=np.int64)
     
+
+def poisson(x, l):
+    return_value = 1
+    for x_i, l_i in zip(x, l):
+        return_value *= scipy.stats.distributions.poisson.pmf(x_i, l_i)
+    return return_value
+
+def calculate_likelihood_em(em, data, kmeans, take_mean=False, weight=0.5, verbose=0):
+    # first reset previous point for all hosts for rerun
+
+    previous_points = {}
+    for host in em.hosts:
+        previous_points[host] = em.hosts[host]['hard_previous']
+
+    total_likelihood = []
+    
+    i = 0
+    for point in data:
+        i += 1
+        if verbose > 0 and i % 10000 == 0:
+            print(i, sum(total_likelihood) / len(total_likelihood))
+            
+        host = point[-1]
+
+        previous_point = previous_points[host]
+
+        point_center = em.closest_centers([point])
+        closest_center = np.argmax(point_center)
+
+        previous_points[host] = closest_center
+        
+        if take_mean:
+            kmeans_probabilities = kmeans.centers[kmeans.assignments[host]][previous_point]
+            host_probabilities = em.hosts[host]['transition_matrix'][previous_point]
+            probabilities = kmeans_probabilities * weight + host_probabilities * (1 - weight)
+        else:
+            probabilities = kmeans.centers[kmeans.assignments[host]][previous_point]
+    
+        participation = probabilities * np.array([poisson(point, lambda_i) for lambda_i in em.lambdas])
+        
+        likelihood = log(np.sum(participation))
+    
+        total_likelihood.append(likelihood)
+
+    return sum(total_likelihood) / len(total_likelihood)
     
 
 def get_random_initialize_lamdas(data, number_of_mixtures=4):

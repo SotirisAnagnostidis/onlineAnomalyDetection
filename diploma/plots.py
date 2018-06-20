@@ -25,13 +25,13 @@ def plot_transition_matrix(em, kmeans, host):
 def plot_points(data, em=None):
     rcParams['figure.figsize'] = 16, 9
     data_hashable = [tuple(x) for x in data]
-    total_points = len(data_hashable) / 100
+    total_points = len(data_hashable) / 10000
 
     values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
     counts = np.array(list(Counter(data_hashable).values()))
 
     for i in range(len(values)):
-        plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='blue')
+        plt.scatter(values[i][0], values[i][1], s=counts[i]/total_points, color='blue')
         
     if em:
         for i, lambda_i in enumerate(em.lambdas):
@@ -48,34 +48,37 @@ def plot_points(data, em=None):
     plt.xlabel('number of flows')
     plt.show()
     
-def plot_points_host(data, hostData=None):
+def plot_points_host(data, hostData=None, em=None):
     rcParams['figure.figsize'] = 16, 9
     data_hashable = [tuple(x) for x in data]
-    total_points = len(data_hashable) / 100
+    total_points = len(data_hashable) / 10000
 
     values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
     counts = np.array(list(Counter(data_hashable).values()))
 
     for i in range(len(values)):
-        plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='blue')
+        plt.scatter(values[i][0], values[i][1], s=counts[i]/total_points, color='blue')
         
-    if hostData is not None:
-        
+    patches=[mpatches.Patch(color='blue', label='Data points')]
+    
+    if hostData is not None:    
         data_hashable = [tuple(x) for x in hostData]
         total_points = len(data_hashable) / 100
 
         values = np.vstack([list(x) for x in list(Counter(data_hashable).keys())])
         counts = np.array(list(Counter(data_hashable).values()))
         for i in range(len(values)):
-            plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='red')
+            plt.scatter(values[i][0], values[i][1], s=counts[i]*100/total_points, color='orange')
+            
+        patches.append(mpatches.Patch(color='orange', label='Host data'))
+        
+    if em is not None:
+        for i, lambda_i in enumerate(em.lambdas):
+            plt.scatter(lambda_i[0], lambda_i[1], s=em.gammas[i]*2500, linewidth=4, color='red', marker='x')
 
-        blue_patch = mpatches.Patch(color='blue', label='Data points')
-        red_patch = mpatches.Patch(color='red', label='Host data')
-        plt.legend(handles=[red_patch, blue_patch], fontsize=18)
-    else:
-        blue_patch = mpatches.Patch(color='blue', label='Data points')
-        plt.legend(handles=[blue_patch], fontsize=18)
+        patches.append(mpatches.Patch(color='red', label='Distribution centers'))
     
+    plt.legend(handles=patches, fontsize=18)
     plt.ylabel('average number of bytes')
     plt.xlabel('number of flows')
     plt.show()

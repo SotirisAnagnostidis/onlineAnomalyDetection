@@ -347,10 +347,3 @@ class OnlineEM(AnomalyMixin):
     # TODO average or update based on factor the final likelihood?
     def get_likelihood(self):
         return self.likelihood
-
-    def get_bic(self, data):
-        """
-        :return a tuple of the bic avg_log_likelihoods and the log likelihood of the whole data
-        """
-        return ((-2) / self.iteration_k) * self.calculate_likelihood(data) + log(len(data)) * (
-            2 * self.m - 1), self.calculate_likelihood(data)
